@@ -1,0 +1,432 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Idriss .S"
+date: "3/24/2022"
+output: html_document
+geometry: "left=.5cm,right=.8cm,top=.8cm,bottom=1.5cm"
+---
+
+
+
+
+<style>
+h2 {
+  color: #c90e27;
+  text-align: center;
+  font-weight : bold;
+}
+h3 {
+  color: #e09304;
+  text-align: center;
+  font-weight : bold;
+}
+h4 {
+  color: #0499d4;
+  font-style: italic;
+}
+h5 {
+  color: #006e6e;
+  font-style: italic;
+}
+</style>
+
+
+
+
+## Initialization code
+```{r setup, include=TRUE, echo=TRUE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(dplyr)
+library(caret)
+library(rpart)
+library(knitr)
+library(kableExtra)
+
+library(randomForest)
+library(foreach) # for the random forest learning, multiple core use
+library(doParallel)
+```
+
+## Loading data
+
+```{r eval=F}
+URL_train = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+URL_valid = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+download.file(URL_train,destfile = "./pml_training.csv",method = "curl")
+download.file(URL_valid,destfile = "./pml_validation.csv",method = "curl")
+
+library(data.table)
+data <- fread("pml_training.csv")
+data_valid <- fread("pml_validation.csv")
+```
+
+
+## Cleaning and preparing data
+
+### First : discard variables with variances close to zero.
+```{r eval=F}
+library(dplyr)
+library(caret)
+data_sub <- data %>% select(-nearZeroVar(data))
+```
+
+### Second : eliminate variables containing too high a proportion of `NA`.
+```{r eval=F}
+prop_NA <- colMeans(is.na(x = data_sub))
+prop_NA <- prop_NA[prop_NA > 0] # Subset of columns with NA
+```
+There is `r length(prop_NA)` variables with `NA` values. The minimum of the proportion of `NA` across these `r length(prop_NA)` variables is `r min(prop_NA)`. Then, ll these variables are to be deleted.
+
+```{r eval=F}
+ind_NA <- which(names(data_sub) %in% names(prop_NA))
+data_sub_2 <- data_sub %>% select(-all_of(ind_NA))
+```
+
+### Third : columns going from the first to the sixth are to be deleted.
+Since it interferes with the variable `classe`, the columns going from the first to the sixth are to be deleted. Indeed, columns like `V1` or `raw_time` give the class directly without taking measurements with the sensors.
+```{r eval=F}
+data_sub_3 <- data_sub_2[,-(1:6)]
+```
+
+
+### Fourth : get rid of the variables related to _dumbbell_.
+In this Human Activity Recognition (HAR), we want _to predict "which" activity was performed at a specific point in time. Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E)._
+
+Therefore, the variables related to **dumbbell** skews the results since according to its position, we know the exercise. In other words, the value of this variable indicates the class sought.
+Instead, we want to predict the class (A, B, C, D, or E) using the wrist, arm, and waist sensors.
+So, below, all variables related to **dumbbell** are deleted from the data set used.
+```{r eval=F}
+no_dumbbell <-
+  grep(pattern = "dumbbell",
+       ignore.case = TRUE,
+       x = colnames(data_sub_3))
+
+data_sub_4 <- data_sub_3 %>% select(-all_of(no_dumbbell))
+data_valid_sub <- data_valid %>% select(names(data_sub_4)[-40])
+```
+
+
+### Fifth : spliting the last subset data `data_sub_4` into training and testing sets.
+```{r eval=F}
+set.seed(0)
+inTrain <-
+  as.vector(createDataPartition(y = data_sub_4$classe, p = .7, list = FALSE))
+data_train <- data_sub_4[inTrain,]
+data_test <- data_sub_4[-inTrain,]
+```
+
+
+## Classification problem (output : discrete values) with supervised learning
+The first approach try to partitioning the training set into multiple sub-spaces in order that the final subset is as homogeneous as possible. The outcome is the varibale `classe` which is a categorical variable. Thus, we will apply classification tree.
+
+### Generating the object `model` that contains the classification tree by using `rpart()` from the `caret` package.
+```{r eval=T, message=FALSE, fig.align='center', fig.width=18, fig.height=8}
+library(rpart)
+library(rpart.plot)
+model <-
+  rpart(classe ~ .,
+        data = data_train)
+rpart.plot(x =model , yesno = 2, type = 0, extra = 104,tweak = 1.2)
+```
+
+Each node shows :
+
++ the predicted class (A to E) ;
++ the predicted probability of each class ;
++ the percentage of observations in the node.
+
+
+This model is complex, hence there is a high chance of **overfitting**.
+
+The maximum depth of this tree is given by the code below :
+```{r eval=T, message=FALSE}
+nodes <- as.numeric(rownames(model$frame))
+max(rpart:::tree.depth(nodes))
+```
+A node’s depth is the number of edges back up to the root. Here, the root is given by the first node, at the first split.
+
+### Predictions using `model` and _testing set_.
+```{r eval=T, message=FALSE, fig.align='center', fig.width=14, fig.height=18}
+pred_mod <- predict(object = model,newdata = data_test, type = "class")
+confus_mod <- confusionMatrix(pred_mod,factor(data_test$classe))
+kbl(round(confus_mod$byClass,4)) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),font_size = 11)
+kbl(bind_cols(Feature=names(confus_mod$overall), model=round(confus_mod$overall,4))) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = F,font_size = 11)
+```
+The confusion matrix returns an accuracy of `r round(confus_mod$overall[1],4)` over all the prediction with a confidence interval at 95 % of [`r round(confus_mod$overall[3],4)`,`r round(confus_mod$overall[4],4)`]. The interval is quite tight.
+
+### Reducing tree size by modifing the *complexity parameter*.
+A way to reduce the increase in the maximum depth of a tree is to change the complexity parameter `cp`. This parameter imposes a penalty for too deep depth. The higher the `cp`, the smaller the tree.
+
+By cross validation approach, an optimal value for `cp` is searched. The selected `cp` value is the one that maximise the cross-vaidation accuracy.
+
+### Two way of coding the learning procedure
+#### The classic way, with `train()` from `caret` package.
+```{r eval=F, message=FALSE}
+set.seed(0)
+model2 <- train(
+  classe ~ .,
+  data = data_train,
+  method = "rpart",
+  trControl = trainControl(
+    method = "repeatedcv",
+    number = 10, # 10-fold cross validation
+    repeats = 10
+  ),
+  tuneLength = 1000 # number of possible cp values to evaluate.
+)
+```
+
+#### Using multiple cores and `train()`.
+**R** processes commands with a single CPU core. To make the most of the powers available, it is possible to use the `doParallel` and `foreach` libraries. This is done below :
+
++ using the function `foreach::foreach()`, a range of `cp` values is scanned ;
++ each value will be treated by one core separately ;
++ this results in a saving of time ;
++ from the final model, only data concerning the value of the `cp` and `accuracy` are kept ;
++ final results are stored in the object `results_2BIS`.
+```{r eval=F, message=FALSE}
+library(foreach)
+library(doParallel)
+my_cores <- detectCores()
+my_cores <- my_cores - 2 #Keep two cores free
+registerDoParallel(my_cores)
+time_track_2BIS <- system.time({
+  results_2BIS <-
+    foreach(num_cp = seq(
+      from = 0,
+      to = .2,
+      length.out = 500
+    ),
+    .combine = rbind) %dopar% {
+      model2BIS <- train(
+        classe ~ .,
+        data = data_train,
+        method = "rpart",
+        trControl = trainControl(
+          method = "repeatedcv",
+          number = 10,
+          # 10-fold cross validation
+          repeats = 3
+        ),
+        tuneGrid = expand.grid(.cp = num_cp),
+      )
+      model2BIS$results
+    }
+})
+print(time_track_2BIS)
+print(str(results_2BIS))
+```
+It is possible to see a significant time saving, almost 10 times less. Moreover, in the approach with several cores, the cross-validation was repeated three times at each `cp`.
+
+
+```{r eval=T, message=FALSE}
+print(model2$bestTune)
+row_max <- which.max(results_2BIS[,"Accuracy"])
+print(results_2BIS[row_max,1])
+plot(model2)
+```
+
+So with 1000 different values, this plot shows that the best `cp` is close to zero and the accuracy of the cross-validation decrease when the complexity parameter increase. Every cross-validation, for every `cp` is repeated 10 time.
+
+```{r eval=T, message=FALSE}
+nodes2 <- as.numeric(rownames(model2$finalModel$frame))
+max(rpart:::tree.depth(nodes2))
+```
+The best maximum depth is greater than for `model` . Therefore, `model2` brings more complexity than the first modeling with `model`. In fact, in the first modeling, we had `cp`=`r  model$control$cp`. The tree is hence more complex :
+
+
+### Predictions using `model2` and _testing set_.
+```{r eval=T, fig.align='center', fig.height=18, fig.width=14, message=FALSE}
+pred_mod2 <- predict(object = model2$finalModel,newdata = data_test, type = "class")
+confus_mod2 <- confusionMatrix(pred_mod2,factor(data_test$classe))
+kbl(round(confus_mod2$byClass,4)) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),font_size = 11)
+kbl(bind_cols(Feature=matrix(names(confus_mod2$overall)),model=round(confus_mod$overall,4),model2=round(confus_mod2$overall,4))) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = F,font_size = 11)
+```
+The accuracy is better with the best tune of `model2`. This suggest a smaller `cp` and therefore a deeper tree (with `r max(rpart:::tree.depth(nodes2))`). The graphical representation is unintelligible, which is why it is not provided.
+
+### Discussions
+Classification tree is a very useful machine learning algorithm by virtue of its easy interpretability. Classification trees might be highly performed compared to Single Linear Regression (or even Multiple) with highly non-linear relationships between predictors and outcome.
+
+Nevertheless, this algorithm has two big issues :
+
++ building trees are unstable by a little variations in training set ;
++ overfitting on the training set.
+
+It's possible to build multiple trees from the training set by using an other machine learning algorithm : **random forest**.
+
+## Random forest classifier with supervised learning
+In the previous section, the `rpart` method was used, now it is the `rf` method.
+### Circumscription of parameters to be determined
+With the Random Forest algorithm, there is at least two parameters to be fixed at values maximizing accuracy :
++ `mtry` : number of predictor variables used at each split ;
++ `ntree` : number of tree used to learn. By default `ntree = 500`.
+
+### Use multiple cores
+Similar to the previous section, `foreach()` is used to exploit multiple CPU cores.
+
+#### `ntree` from 10 to 130 by 20.
+```{r eval=F, message=FALSE}
+mtry_seq <- c(2, 3, 4, 5, 10, 15, 20, 25, 30, 35, 40, 49)
+time_track <- system.time({
+  results <-
+    foreach(numb_tree = seq(from = 10, to = 130, by = 20),
+            combine = rbind) %dopar% {
+              model3 <- train(
+                form = classe ~ .,
+                data = data_train,
+                mthod = "rf",
+                trControl = trainControl(
+                  method = "repeatedcv",
+                  number = 10,
+                  repeats = 4
+                ),
+                # Train for all values of mtry stored in mtry_seq
+                tuneGrid = expand.grid(.mtry = mtry_seq),
+                ntree = numb_tree,
+                importance = TRUE,
+                metric = "Accuracy",
+                verbose = FALSE
+              )
+              # The return is stored in `results`
+              bind_cols(model3$results[, 1:2], rep(numb_tree, length(mtry_seq)))
+            }
+})
+```
+
+#### `ntree` from 150 to 230 by 20.
+```{r eval=F, message=FALSE}
+mtry_seq <- c(2, 3, 4, 5, 10, 15, 20, 25, 30, 35, 40, 49)
+time_track_2 <- system.time({
+  results_2 <-
+    foreach(numb_tree = seq(from = 150, to = 230, by = 20),
+            combine = rbind) %dopar% {
+              model4 <- train(
+                form = classe ~ .,
+                data = data_train,
+                mthod = "rf",
+                trControl = trainControl(
+                  method = "repeatedcv",
+                  number = 10,
+                  repeats = 4
+                ),
+                # Train for all values of mtry stored in mtry_seq
+                tuneGrid = expand.grid(.mtry = mtry_seq),
+                ntree = numb_tree,
+                importance = TRUE,
+                metric = "Accuracy",
+                verbose = FALSE
+              )
+              # The return is stored in `results_2`
+              bind_cols(model4$results[, 1:2], rep(numb_tree, length(mtry_seq))) 
+            }
+})
+```
+
+#### Time cost.
+```{r eval=T, message=FALSE}
+print(time_track)
+print(time_track_2)
+```
+
+#### Merging the two resulting objects `results` and `results_2` into one for visualization.
+```{r eval=F, message=FALSE}
+result_acc <-  bind_rows(results,results_2)
+names(result_acc) <- c("mtry", "Accuracy", "ntree")
+sapply(result_acc,which.max)
+```
+
+```{r eval=T, echo=FALSE, message=FALSE}
+sapply(result_acc,which.max)
+```
+
+```{r eval=T, message=FALSE}
+result_acc[50,]
+```
+
+#### Visualization of the evolution of `accuracy` according to `mtry`. Curves are grouped by the value of `ntree`.
+```{r fig.align='center', fig.height=6, fig.width=14, message=FALSE}
+library(ggplot2)
+mpt <- result_acc %>%
+  ggplot(aes(x = mtry, y = Accuracy, group=ntree, color=numb_tree)) +
+  geom_point(aes(colour = ntree)) +
+  geom_line(aes(colour = ntree)) +
+  labs(x = "mtry", y = "Accuracy")
+print(mpt)
+```
+#### Selection of best tunes.
+
+It turns out :
+
++ the more trees, the better the accuracy. But it's huge time consuming. About 3.5 h for values of `ntree` ranging from 150 to 230 ;
++ the best tunes are :
+  + `mtry = 5` ;
+  + `ntree = 190` ;
+
+#### Build a Random Forest learning named `model5` with the best tunes
+```{r eval=F, message=FALSE}
+model5 <-
+  randomForest(
+    as.factor(classe) ~ .,
+    data = data_train,
+    mtry = 5,
+    ntree = 190,
+    importance = TRUE
+  )
+```
+
+### Predictions using `model` and _testing set_.
+```{r eval=T, message=FALSE, fig.align='center', fig.width=14, fig.height=18}
+pred_mod5 <- predict(object = model5,newdata = data_test, type = "class")
+confus_mod5 <- confusionMatrix(pred_mod5,factor(data_test$classe))
+kbl(round(confus_mod5$byClass,4)) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),font_size = 11)
+kbl(bind_cols(Feature=names(confus_mod5$overall), model5=round(confus_mod5$overall,4))) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = F,font_size = 11)
+```
+The confusion matrix returns an accuracy of `r round(confus_mod5$overall[1],4)` over all the prediction with a confidence interval at 95 % of [`r round(confus_mod5$overall[3],4)`,`r round(confus_mod5$overall[4],4)`]. The interval is quite tight.
+
+### Discussion
+
+With a Random Forest learning, the accuracy on the treaning set is much better. Indeed :
+
++ for accuracy : from `r round(confus_mod$overall[1],4)` we get `r round(confus_mod5$overall[1],4)` ;
++ for confidence interval : from [`r round(confus_mod$overall[3],4)`,`r round(confus_mod$overall[4],4)`] we get [`r round(confus_mod5$overall[3],4)`,`r round(confus_mod5$overall[4],4)`].
+
+But all of these came with cost : **time**. From few second (less 2 min) for `rpart()` we go to several hours (more than 5 h) to find the best tunes.
+
+## Prediction on the validation set
+Last thing, we will use the validation set stored in `data_valid` to make predictions like with the testing set `data_test`.
+```{r eval=T, message=FALSE, fig.align='center', fig.width=14, fig.height=18}
+pred_val <-
+  predict(object = model,
+          newdata = data_valid_sub,
+          type = "class")
+pred_val2 <-
+  predict(object = model2$finalModel,
+          newdata = data_valid_sub,
+          type = "class")
+pred_val5 <-
+  predict(object = model5,
+          newdata = data_valid_sub,
+          type = "class")
+kbl(
+  bind_rows(
+    bind_cols("model (rpart)", t(as.character(pred_val))),
+    bind_cols("model2 (rpart with cp control)", t(as.character(pred_val2))),
+    bind_cols("model5 (random forest)", t(as.character(pred_val5)))
+  ),
+  col.names = c("Learning approach","1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20")
+) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    font_size = 11
+  )
+```
+#### We can notice  the classifications with Random Forest and `rpart` return the same results.
+

@@ -6,7 +6,7 @@ output: html_document
 geometry: "left=.5cm,right=.8cm,top=.8cm,bottom=1.5cm"
 ---
 
-# Internals lines
+<!-- Internals lines -->
 ```{r eval=F, echo=F,message=F, warning=F}
 load(file = "Untitled.RData") 
 ```

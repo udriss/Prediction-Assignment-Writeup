@@ -390,7 +390,16 @@ model5 <-
   )
 ```
 
+### Eror rate
+
+```{r eval=T, message=FALSE, fig.align='center', fig.width=14, fig.height=6}
+plot(model5)
+legend("right", colnames(model5$err.rate),cex=1.5,fill = 1:6,lty = 1:6, title="Classe and OOB", text.font=4, bg='#abd4b6')
+```
+This plot leads to the same conclusion as before. The higher the number of trees, the more the error decreases and conversely the more the accuracy increases.
+
 ### Predictions using `model` and _testing set_.
+
 ```{r eval=T, message=FALSE, fig.align='center', fig.width=14, fig.height=18}
 pred_mod5 <- predict(object = model5,newdata = data_test, type = "class")
 confus_mod5 <- confusionMatrix(pred_mod5,factor(data_test$classe))

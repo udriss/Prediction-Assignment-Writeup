@@ -1967,14 +1967,30 @@ second (less 2 min) for <code>rpart()</code> we go to several hours
 <p>Last thing, we will use the validation set stored in
 <code>data_valid</code> to make predictions like with the testing set
 <code>data_test</code>.</p>
-<pre class="r"><code>pred_val &lt;- predict(object = model,newdata = data_valid_sub, type = &quot;class&quot;)
-pred_val2 &lt;- predict(object = model2$finalModel,newdata = data_valid_sub, type = &quot;class&quot;)
-pred_val5 &lt;- predict(object = model5,newdata = data_valid_sub, type = &quot;class&quot;)
-kbl(bind_rows(bind_cols(&quot;model (rpart)&quot;,t(as.character(pred_val))),
-    bind_cols(&quot;model2 (rpart with cp control)&quot;,t(as.character(pred_val2))),
-    bind_cols(&quot;model5 (random forest)&quot;,t(as.character(pred_val5)))),
-    col.names = c(&quot;Learning approach&quot;,&quot;1&quot;,&quot;2&quot;,&quot;3&quot;,&quot;4&quot;,&quot;5&quot;,&quot;6&quot;,&quot;7&quot;,&quot;8&quot;,&quot;9&quot;,&quot;10&quot;,&quot;11&quot;,&quot;12&quot;,&quot;13&quot;,&quot;14&quot;,&quot;15&quot;,&quot;16&quot;,&quot;17&quot;,&quot;18&quot;,&quot;19&quot;,&quot;20&quot;)) %&gt;%
-  kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;, &quot;condensed&quot;, &quot;responsive&quot;),font_size = 11)</code></pre>
+<pre class="r"><code>pred_val &lt;-
+  predict(object = model,
+          newdata = data_valid_sub,
+          type = &quot;class&quot;)
+pred_val2 &lt;-
+  predict(object = model2$finalModel,
+          newdata = data_valid_sub,
+          type = &quot;class&quot;)
+pred_val5 &lt;-
+  predict(object = model5,
+          newdata = data_valid_sub,
+          type = &quot;class&quot;)
+kbl(
+  bind_rows(
+    bind_cols(&quot;model (rpart)&quot;, t(as.character(pred_val))),
+    bind_cols(&quot;model2 (rpart with cp control)&quot;, t(as.character(pred_val2))),
+    bind_cols(&quot;model5 (random forest)&quot;, t(as.character(pred_val5)))
+  ),
+  col.names = c(&quot;Learning approach&quot;,&quot;1&quot;,&quot;2&quot;,&quot;3&quot;,&quot;4&quot;,&quot;5&quot;,&quot;6&quot;,&quot;7&quot;,&quot;8&quot;,&quot;9&quot;,&quot;10&quot;,&quot;11&quot;,&quot;12&quot;,&quot;13&quot;,&quot;14&quot;,&quot;15&quot;,&quot;16&quot;,&quot;17&quot;,&quot;18&quot;,&quot;19&quot;,&quot;20&quot;)
+) %&gt;%
+  kable_styling(
+    bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;, &quot;condensed&quot;, &quot;responsive&quot;),
+    font_size = 11
+  )</code></pre>
 <table class="table table-striped table-hover table-condensed table-responsive" style="font-size: 11px; margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
@@ -2244,7 +2260,11 @@ B
 <div id="we-can-notice-the-classifications-with-random-forest-and-rpart-return-the-same-results." class="section level4">
 <h4>We can notice the classifications with Random Forest and
 <code>rpart</code> return the same results.</h4>
+<p><br><br><br><br></p>
 </div>
+</div>
+<div id="end" class="section level2">
+<h2>end</h2>
 </div>
 
 

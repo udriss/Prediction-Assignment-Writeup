@@ -8,7 +8,6 @@ geometry: "left=.5cm,right=.8cm,top=.8cm,bottom=1.5cm"
 
 
 
-
 <style>
 h2 {
   color: #c90e27;
@@ -430,3 +429,6 @@ kbl(
 ```
 #### We can notice  the classifications with Random Forest and `rpart` return the same results.
 
+<br><br><br><br>
+
+## end

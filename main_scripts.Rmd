@@ -7,7 +7,7 @@ geometry: "left=.5cm,right=.8cm,top=.8cm,bottom=1.5cm"
 ---
 
 <!-- Internals lines -->
-```{r eval=F, echo=F,message=F, warning=F}
+```{r eval=T, echo=F,message=F, warning=F}
 load(file = "Untitled.RData") 
 ```
 
@@ -269,7 +269,9 @@ It's possible to build multiple trees from the training set by using an other ma
 
 ## Random forest classifier with supervised learning
 In the previous section, the `rpart` method was used, now it is the `rf` method.
+
 ### Circumscription of parameters to be determined
+
 With the Random Forest algorithm, there is at least two parameters to be fixed at values maximizing accuracy :
 + `mtry` : number of predictor variables used at each split ;
 + `ntree` : number of tree used to learn. By default `ntree = 500`.
@@ -366,6 +368,7 @@ mpt <- result_acc %>%
   labs(x = "mtry", y = "Accuracy")
 print(mpt)
 ```
+
 #### Selection of best tunes.
 
 It turns out :

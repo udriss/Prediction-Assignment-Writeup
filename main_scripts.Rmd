@@ -6,6 +6,10 @@ output: html_document
 geometry: "left=.5cm,right=.8cm,top=.8cm,bottom=1.5cm"
 ---
 
+# Internals lines
+```{r eval=F, echo=F,message=F, warning=F}
+load(file = "Untitled.RData") 
+```
 
 
 <style>
@@ -66,6 +70,7 @@ data_valid <- fread("pml_validation.csv")
 
 
 ## Cleaning and preparing data
+
 
 ### First : discard variables with variances close to zero.
 ```{r eval=F}
